@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal AI Assistant</title>
+<style>
+  :root { --bg:#1e1e2e; --panel:#181825; --text:#cdd6f4; --muted:#a6adc8; --user:#89b4fa; --bot:#a6e3a1; --sys:#f9e2af; --line:#313244; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font-family:"Segoe UI",system-ui,sans-serif; display:flex; justify-content:center; }
+  .app { width:100%; max-width:640px; height:100%; display:flex; flex-direction:column; padding:12px; }
+  h1 { font-size:1.3rem; text-align:center; margin:8px 0 12px; }
+  #chat { flex:1; overflow-y:auto; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .msg { margin:0 0 10px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .user { color:var(--user); } .assistant { color:var(--bot); } .system { color:var(--sys); }
+  form { display:flex; gap:8px; margin-top:10px; }
+  input { flex:1; min-width:0; padding:12px; font-size:1rem; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); }
+  button { padding:0 16px; font-size:1rem; border-radius:8px; border:0; background:var(--user); color:#11111b; cursor:pointer; }
+  button#mic { background:var(--line); color:var(--text); }
+  button#mic.on { background:#f38ba8; color:#11111b; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  :focus-visible { outline:2px solid var(--sys); outline-offset:2px; }
+  #status { text-align:center; font-size:.8rem; color:var(--muted); margin:8px 0 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Personal AI Assistant</h1>
+  <div id="chat" role="log" aria-live="polite"></div>
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="Type a command, e.g. what is python" aria-label="Command">
+    <button type="submit">Send</button>
+    <button type="button" id="mic">Mic</button>
+  </form>
+  <p id="status"></p>
+</div>
+<script>
+const USER_NAME = "User";
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const micBtn = document.getElementById("mic");
+const statusEl = document.getElementById("status");
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const canSpeak = "speechSynthesis" in window;
+if (!SR) micBtn.disabled = true;
+statusEl.textContent = SR && canSpeak ? "Voice and text available"
+  : canSpeak ? "Voice output only (mic not supported in this browser)"
+  : "Text-only mode";
+
+function log(text, cls, prefix = "") {
+  const p = document.createElement("p");
+  p.className = "msg " + cls;
+  p.textContent = prefix + text;
+  chat.appendChild(p);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function speak(text) {
+  if (!canSpeak) return;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+const has = (t, ...words) => words.some(w => new RegExp("\\b" + w + "\\b").test(t));
+
+const JOKES = [
+  "Why do programmers prefer dark mode? Because light attracts bugs.",
+  "I would tell you a UDP joke, but you might not get it.",
+  "There are 10 types of people: those who understand binary and those who don't.",
+  "A SQL query walks into a bar, sees two tables and asks: can I join you?",
+  "Why did the developer go broke? He used up all his cache."
+];
+
+async function wiki(topic) {
+  try {
+    const s = await fetch("https://en.wikipedia.org/w/api.php?action=opensearch&limit=1&namespace=0&format=json&origin=*&search=" + encodeURIComponent(topic));
+    const titles = (await s.json())[1];
+    if (!titles || !titles.length) return null;
+    const r = await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(titles[0].replace(/ /g, "_")));
+    const extract = ((await r.json()).extract || "").trim();
+    if (!extract) return null;
+    return extract.split(". ").slice(0, 2).join(". ").replace(/\.$/, "") + ".";
+  } catch (e) { return null; }
+}
+
+function openTab(url, msg) { window.open(url, "_blank", "noopener"); return msg; }
+
+// Returns a string, or a Promise of a string
+function process(raw) {
+  const original = raw.trim();
+  const c = original.toLowerCase();
+  if (!c) return "I didn't catch that. Could you repeat it?";
+
+  if (has(c, "hi", "hey", "hello")) {
+    const h = new Date().getHours();
+    const part = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    return `${part}, ${USER_NAME}! How can I help you?`;
+  }
+  if (has(c, "help") || c.includes("what can you do"))
+    return "I can tell the time or date; open Google, YouTube, Instagram or WhatsApp; search the web; answer 'who/what/where is ...' questions from Wikipedia; tell a joke; save a note with 'note: ...'; repeat something with 'say ...'.";
+  if (has(c, "time")) return "The current time is " + new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) + ".";
+  if (has(c, "date", "today")) return "Today is " + new Date().toLocaleDateString("en-GB", {weekday:"long", day:"2-digit", month:"long", year:"numeric"}) + ".";
+
+  if (c.includes("open youtube")) return openTab("https://youtube.com", "Opening YouTube.");
+  if (c.includes("open whatsapp")) return openTab("https://web.whatsapp.com/", "Opening WhatsApp.");
+  if (c.includes("open google")) return openTab("https://google.com", "Opening Google.");
+  if (c.includes("open instagram")) return openTab("https://www.instagram.com", "Opening Instagram.");
+  if (c.startsWith("open ")) return "A website can't open apps on your PC. Try 'open youtube', 'open google', 'open instagram' or 'open whatsapp'.";
+
+  if (c.startsWith("search")) {
+    const q = c.replace("search for", "").replace("search", "").trim();
+    if (!q) return "What should I search for?";
+    return openTab("https://www.google.com/search?q=" + encodeURIComponent(q), "Here's what I found for " + q + ".");
+  }
+
+  const prefixes = ["who is","who was","what is","what was","who created","who made","who invented","who founded","who discovered","where is","where was","where are"];
+  const p = prefixes.find(x => c.startsWith(x));
+  if (p) {
+    const topic = c.slice(p.length).trim();
+    if (!topic) return "Who or what would you like to know about?";
+    return wiki(topic).then(r => r || "I couldn't find clear information on " + topic + ".");
+  }
+
+  if (has(c, "joke", "jokes")) return JOKES[Math.floor(Math.random() * JOKES.length)];
+  if (c.startsWith("speak ") || c.startsWith("say ")) return original.split(" ").slice(1).join(" ") || "What would you like me to say?";
+
+  if (c.startsWith("note:") || c.startsWith("take a note")) {
+    const content = c.startsWith("note:") ? c.split(":").slice(1).join(":").trim()
+                                          : c.slice("take a note".length).replace(/^:/, "").trim();
+    if (!content) return "What should I write in the note?";
+    try {
+      const notes = JSON.parse(localStorage.getItem("notes") || "[]");
+      notes.push("[" + new Date().toLocaleString() + "] " + content);
+      localStorage.setItem("notes", JSON.stringify(notes));
+      return "Noted!";
+    } catch (e) { return "I couldn't save the note in this browser."; }
+  }
+  if (has(c, "notes") && (c.startsWith("show") || c.startsWith("read"))) {
+    const notes = JSON.parse(localStorage.getItem("notes") || "[]");
+    return notes.length ? notes.join("\n") : "You have no notes yet.";
+  }
+
+  if (c.includes("your name")) return "I'm your personal assistant, built in Python. My creator is Rushi Jadhav.";
+  if (has(c, "thank", "thanks")) return "You're welcome!";
+  if (has(c, "exit", "quit", "bye", "stop")) return "Goodbye! Refresh the page to start again.";
+  return "I'm not sure how to help with that yet.";
+}
+
+async function respond(text) {
+  log(text, "user", "You: ");
+  const reply = await process(text);
+  log(reply, "assistant", "Assistant: ");
+  speak(reply);
+}
+
+document.getElementById("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = input.value.trim();
+  if (!v) return;
+  input.value = "";
+  respond(v);
+});
+
+if (SR) {
+  const rec = new SR();
+  rec.lang = "en-US";
+  rec.onstart = () => { micBtn.classList.add("on"); statusEl.textContent = "Listening..."; };
+  rec.onend = () => { micBtn.classList.remove("on"); statusEl.textContent = "Voice and text available"; };
+  rec.onresult = e => respond(e.results[0][0].transcript);
+  rec.onerror = e => log(e.error === "not-allowed" ? "Microphone permission was blocked." : "I didn't catch that.", "system");
+  micBtn.addEventListener("click", () => { try { rec.start(); } catch (e) {} });
+}
+
+log("Assistant ready. Type a command below or tap Mic.", "system");
+</script>
+</body>
+</html>
