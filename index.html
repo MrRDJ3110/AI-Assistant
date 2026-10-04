@@ -87,6 +87,23 @@ async function wiki(topic) {
 
 function openTab(url, msg) { window.open(url, "_blank", "noopener"); return msg; }
 
+// Installed apps that register a link the browser can launch (asks permission first)
+const APPS = {
+  "steam": "steam://open/main",
+  "epic games": "com.epicgames.launcher://apps", "epic games launcher": "com.epicgames.launcher://apps",
+  "epic": "com.epicgames.launcher://apps", "epicgames": "com.epicgames.launcher://apps",
+  "spotify": "spotify:", "discord": "discord://", "telegram": "tg://",
+  "calculator": "calculator:", "settings": "ms-settings:", "teams": "msteams:"
+};
+
+function openApp(name) {
+  const n = name.replace(/^(my|the)\s+/, "").replace(/\s+(app|application|please|now)$/, "").trim();
+  const url = APPS[n];
+  if (!url) return "I can't open '" + n + "' from a website. I can open: " + Object.keys(APPS).join(", ") + ", youtube, google, instagram, whatsapp.";
+  window.location.href = url;
+  return "Opening " + n + ". If nothing happens, the app isn't installed or the browser blocked it. Allow the prompt if one appears.";
+}
+
 // Returns a string, or a Promise of a string
 function process(raw) {
   const original = raw.trim();
@@ -107,7 +124,7 @@ function process(raw) {
   if (c.includes("open whatsapp")) return openTab("https://web.whatsapp.com/", "Opening WhatsApp.");
   if (c.includes("open google")) return openTab("https://google.com", "Opening Google.");
   if (c.includes("open instagram")) return openTab("https://www.instagram.com", "Opening Instagram.");
-  if (c.startsWith("open ")) return "A website can't open apps on your PC. Try 'open youtube', 'open google', 'open instagram' or 'open whatsapp'.";
+  if (c.startsWith("open ")) return openApp(c.slice(5).trim());
 
   if (c.startsWith("search")) {
     const q = c.replace("search for", "").replace("search", "").trim();
