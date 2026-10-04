@@ -53,6 +53,26 @@ print(f"Using your assistant code from: {path}")
 app = Flask(__name__)
 core = AssistantCore(user_name="User")  # same default as your GUI
 
+# Websites allowed to send commands to this program. Your GitHub Pages site
+# is allowed so it can open apps on this PC; every other site is refused.
+ALLOWED_ORIGINS = {
+    "https://mrrdj3110.github.io",
+    "http://127.0.0.1:5000",
+    "http://localhost:5000",
+}
+
+
+@app.after_request
+def add_cors(resp):
+    origin = request.headers.get("Origin")
+    if origin in ALLOWED_ORIGINS:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
+        resp.headers["Vary"] = "Origin"
+    return resp
+
 PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -167,8 +187,13 @@ def home():
     return Response(PAGE, mimetype="text/html")
 
 
-@app.post("/api/command")
+@app.route("/api/command", methods=["POST", "OPTIONS"])
 def command():
+    if request.method == "OPTIONS":
+        return "", 204
+    origin = request.headers.get("Origin")
+    if origin and origin not in ALLOWED_ORIGINS:
+        return jsonify(reply="Blocked."), 403
     data = request.get_json(silent=True) or {}
     return jsonify(reply=core.process(data.get("command", "")))
 
