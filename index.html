@@ -98,7 +98,12 @@ const APPS = {
 
 function openApp(name) {
   const n = name.replace(/^(my|the)\s+/, "").replace(/\s+(app|application|please|now)$/, "").trim();
-  const url = APPS[n];
+  let url = APPS[n];
+  if (!url) {
+    // forgiving match: longest known name contained in what was said ("epic game launcher" -> "epic")
+    const key = Object.keys(APPS).filter(k => n.includes(k)).sort((a, b) => b.length - a.length)[0];
+    if (key) url = APPS[key];
+  }
   if (!url) return "I can't open '" + n + "' from a website. I can open: " + Object.keys(APPS).join(", ") + ", youtube, google, instagram, whatsapp.";
   window.location.href = url;
   return "Opening " + n + ". If nothing happens, the app isn't installed or the browser blocked it. Allow the prompt if one appears.";
@@ -107,7 +112,7 @@ function openApp(name) {
 // Returns a string, or a Promise of a string
 function process(raw) {
   const original = raw.trim();
-  const c = original.toLowerCase();
+  const c = original.toLowerCase().replace(/[.!?,\s]+$/, "");
   if (!c) return "I didn't catch that. Could you repeat it?";
 
   if (has(c, "hi", "hey", "hello")) {
