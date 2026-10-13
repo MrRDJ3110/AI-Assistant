@@ -97,7 +97,7 @@
     <div id="chat" role="log" aria-live="polite"></div>
   </div>
   <form id="form">
-    <input id="input" autocomplete="off" placeholder="Type a command, e.g. what is python" aria-label="Command">
+    <input id="input" autocomplete="off" enterkeyhint="send" placeholder="Type a command, e.g. what is python" aria-label="Command">
     <button type="submit">Send</button>
     <button type="button" id="mic">Mic</button>
   </form>
@@ -334,14 +334,31 @@ document.getElementById("form").addEventListener("submit", e => {
 if (SR) {
   const rec = new SR();
   rec.lang = "en-US";
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
   rec.onstart = () => { orb.classList.add("listening"); micBtn.classList.add("on"); statusEl.textContent = "Listening..."; };
   rec.onend = () => { orb.classList.remove("listening"); micBtn.classList.remove("on"); statusEl.textContent = "Voice and text available"; };
   rec.onresult = e => respond(e.results[0][0].transcript);
-  rec.onerror = e => log(e.error === "not-allowed" ? "Microphone permission was blocked." : "I didn't catch that.", "system");
-  micBtn.addEventListener("click", () => { try { rec.start(); } catch (e) {} });
+  const MIC_ERRORS = {
+    "not-allowed": "Microphone is blocked for this site. Tap the lock icon next to the address bar, allow Microphone, then reload. Also check Android Settings > Apps > Chrome > Permissions > Microphone.",
+    "service-not-allowed": "Voice recognition is switched off on this device. Make sure the Google app is installed and enabled, or use your keyboard's mic key to speak into the box.",
+    "audio-capture": "No microphone found, or another app is using it. Close other apps that use the mic and try again.",
+    "network": "Voice recognition needs an internet connection.",
+    "no-speech": "I didn't hear anything. Tap Mic and start speaking right away."
+  };
+  rec.onerror = e => {
+    if (e.error === "aborted") return;
+    log(MIC_ERRORS[e.error] || ("Mic error: " + e.error + ". You can also use your keyboard's mic key to speak into the box."), "system");
+  };
+  micBtn.addEventListener("click", () => {
+    if (canSpeak) speechSynthesis.cancel();
+    try { rec.start(); } catch (e) {}
+  });
 }
 
 log("System online. Type a command below or tap Mic.", "system");
+if (/; wv\)|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent))
+  log("This looks like an in-app browser, where the Mic often does not work. Open this page in Chrome.", "system");
 </script>
 </body>
 </html>
