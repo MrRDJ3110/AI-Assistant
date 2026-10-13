@@ -52,6 +52,7 @@ print(f"Using your assistant code from: {path}")
 
 app = Flask(__name__)
 core = AssistantCore(user_name="User")  # same default as your GUI
+NAME_TRIGGERS = ("your name", "who are you", "introduce yourself")
 
 # Websites allowed to send commands to this program. Your GitHub Pages site
 # is allowed so it can open apps on this PC; every other site is refused.
@@ -78,7 +79,7 @@ PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Personal AI Assistant</title>
+<title>EVERYTHING AI</title>
 <style>
   :root { --bg:#1e1e2e; --panel:#181825; --text:#cdd6f4; --muted:#a6adc8; --user:#89b4fa; --bot:#a6e3a1; --sys:#f9e2af; --line:#313244; }
   * { box-sizing:border-box; }
@@ -101,7 +102,7 @@ PAGE = r"""<!DOCTYPE html>
 </head>
 <body>
 <div class="app">
-  <h1>Personal AI Assistant</h1>
+  <h1>EVERYTHING AI</h1>
   <div id="chat" role="log" aria-live="polite"></div>
   <form id="form">
     <input id="input" autocomplete="off" placeholder="Type a command, e.g. what is python" aria-label="Command">
@@ -153,7 +154,7 @@ async function respond(text) {
     return;
   }
   if (reply === "__EXIT__") reply = "Goodbye! Refresh the page to start again.";
-  log(reply, "assistant", "Assistant: ");
+  log(reply, "assistant", "EVERYTHING AI: ");
   speak(reply);
 }
 
@@ -195,7 +196,11 @@ def command():
     if origin and origin not in ALLOWED_ORIGINS:
         return jsonify(reply="Blocked."), 403
     data = request.get_json(silent=True) or {}
-    return jsonify(reply=core.process(data.get("command", "")))
+    text = data.get("command", "")
+    # Name questions are answered here, so your original dream.py needs no change
+    if any(t in text.lower() for t in NAME_TRIGGERS):
+        return jsonify(reply="My name is EVERYTHING AI. My creator is Rushi Jadhav.")
+    return jsonify(reply=core.process(text))
 
 
 if __name__ == "__main__":
