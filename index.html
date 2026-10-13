@@ -110,6 +110,7 @@ let awaitingStart = false;
 let commandInFlight = false;
 let lastRecognitionError = "";
 let microphonePermission = "prompt";
+let stopFallbackTimer = 0;
 
 function setStatus(message, state = "ready") {
   statusEl.textContent = message;
@@ -134,7 +135,7 @@ function keyboardVoiceHelp(reason) {
 function updateVoiceAvailability() {
   if (!SpeechRecognition) {
     setStatus("Browser voice commands unavailable — keyboard dictation is ready", "warning");
-    keyboardVoiceHelp(IS_IOS ? "Safari and other iOS browsers do not currently provide the browser speech-recognition feature used by this Mic button." : "This browser does not provide SpeechRecognition.");
+    keyboardVoiceHelp(IS_IOS ? "This iPhone or iPad browser does not provide the speech-recognition feature used by this Mic button." : "This browser does not provide SpeechRecognition.");
     micBtn.setAttribute("aria-label", "Show keyboard voice typing instructions");
     return;
   }
@@ -208,6 +209,9 @@ function logLink(label, url) {
 }
 
 const MOBILE_APPS = Object.assign({"whatsapp":"whatsapp://","facebook":"fb://","messenger":"fb-messenger://","twitter":"twitter://","telegram":"tg://","snapchat":"snapchat://","spotify":"spotify:","discord":"discord://","linkedin":"linkedin://","reddit":"reddit://","pinterest":"pinterest://","netflix":"nflx://","zoom":"zoomus://","skype":"skype:","slack":"slack://","uber":"uber://","dialer":"tel:","call":"tel:","messages":"sms:","sms":"sms:","mail":"mailto:","email":"mailto:"}, IS_IOS ? {"instagram":"instagram://app","youtube":"youtube://","facetime":"facetime:","calendar":"calshow://","music":"music://","photos":"photos-redirect://","app store":"itms-apps://","shortcuts":"shortcuts://","notes":"mobilenotes://","maps":"maps://","google maps":"comgooglemaps://","gmail":"googlegmail://","mail":"message:","email":"message:","chrome":"googlechromes://"} : {"instagram":"instagram://","youtube":"vnd.youtube://","play store":"https://play.google.com/store","maps":"geo:0,0?q=","google maps":"geo:0,0?q="});
+// Universal links are more reliable than custom Android intent URLs. Installed apps may still claim them,
+// while phones without the app simply open the useful website instead of showing a "no app found" error.
+const MOBILE_WEB_LINKS = {"instagram":"https://www.instagram.com/","whatsapp":"https://www.whatsapp.com/","youtube":"https://www.youtube.com/","facebook":"https://www.facebook.com/","twitter":"https://x.com/","spotify":"https://open.spotify.com/","linkedin":"https://www.linkedin.com/","reddit":"https://www.reddit.com/","pinterest":"https://www.pinterest.com/","netflix":"https://www.netflix.com/","google maps":"https://www.google.com/maps/","maps":"https://www.google.com/maps/"};
 
 function launchUrl(url) {
   if (!IS_ANDROID) return url;
@@ -226,8 +230,10 @@ async function openApp(name) {
   const apps = IS_MOBILE ? MOBILE_APPS : APPS;
   if (!IS_MOBILE) { const pc = await pcOpen(n); if (pc && !pc.startsWith("I couldn't find")) return pc; }
   let url = apps[n];
-  if (!url) { const key = Object.keys(apps).filter(k => n.includes(k)).sort((a,b) => b.length - a.length)[0]; if (key) url = apps[key]; }
+  let matchedName = n;
+  if (!url) { const key = Object.keys(apps).filter(k => n.includes(k)).sort((a,b) => b.length - a.length)[0]; if (key) { url = apps[key]; matchedName = key; } }
   if (!url) return IS_MOBILE ? "I can't open '" + n + "' from a browser. Apps I can open on this phone: " + Object.keys(apps).join(", ") + "." : "I can't open '" + n + "' from a website alone. Run 'python app.py' on this PC to open any app. Without it I can open: " + Object.keys(apps).join(", ") + ", youtube, google, instagram, whatsapp.";
+  if (IS_MOBILE && MOBILE_WEB_LINKS[matchedName]) return openTab(MOBILE_WEB_LINKS[matchedName], "Opening " + matchedName + ". Your phone may offer to switch to the app if it is installed.");
   const link = launchUrl(url); window.location.href = link; setTimeout(() => logLink("Didn't open? Tap here to launch " + n, link), 0);
   return "Opening " + n + ". Allow the prompt if one appears.";
 }
@@ -313,6 +319,7 @@ function createRecognition() {
   let stoppedByUser = false;
 
   rec.onstart = () => {
+    window.clearTimeout(stopFallbackTimer);
     awaitingStart = false;
     lastRecognitionError = "";
     setMicListening(true);
@@ -334,12 +341,13 @@ function createRecognition() {
     if (event.error !== "aborted" || !stoppedByUser) reportMicError(lastRecognitionError);
   };
   rec.onend = () => {
+    window.clearTimeout(stopFallbackTimer);
     awaitingStart = false;
     setMicListening(false);
     if (recognition === rec) recognition = null;
     if (gotResult || commandInFlight) return;
-    if (lastRecognitionError) return;
     if (stoppedByUser) { updateVoiceAvailability(); return; }
+    if (lastRecognitionError) return;
     setStatus("Listening ended — tap Mic to try again", "warning");
   };
   rec._stopByUser = () => { stoppedByUser = true; };
@@ -366,8 +374,18 @@ function startOrStopRecognition() {
     return;
   }
   if (listening || awaitingStart) {
-    if (recognition) { recognition._stopByUser(); try { recognition.stop(); } catch (_) {} }
+    const activeRecognition = recognition;
+    if (activeRecognition) { activeRecognition._stopByUser(); try { activeRecognition.stop(); } catch (_) {} }
     setStatus("Stopping microphone…", "warning");
+    // Some Android Web Speech implementations omit onend after stop(). Do not leave the UI permanently stuck.
+    window.clearTimeout(stopFallbackTimer);
+    stopFallbackTimer = window.setTimeout(() => {
+      if (recognition !== activeRecognition || commandInFlight) return;
+      recognition = null;
+      awaitingStart = false;
+      setMicListening(false);
+      updateVoiceAvailability();
+    }, 1500);
     return;
   }
   if (canSpeak) speechSynthesis.cancel();
