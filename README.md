@@ -1,4 +1,4 @@
-# Personal AI Assistant (Web Version)
+# EVERYTHING AI (Web Version)
 
 A voice and text assistant that runs in your browser. It is the web version of my Python desktop project (Tkinter GUI + speech recognition), rewritten in JavaScript so anyone can use it from a link.
 
