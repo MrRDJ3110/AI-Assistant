@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Personal AI Assistant</title>
+<title>EVERYTHING AI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -90,7 +90,7 @@
 <div class="app">
   <header>
     <div class="orb" id="orb" aria-hidden="true"></div>
-    <h1>Personal AI Assistant</h1>
+    <h1>EVERYTHING AI</h1>
     <p class="tag">NEURAL LINK ONLINE</p>
   </header>
   <div class="panel">
@@ -258,6 +258,8 @@ function process(raw) {
   const original = raw.trim();
   const c = original.toLowerCase().replace(/[.!?,\s]+$/, "");
   if (!c) return "I didn't catch that. Could you repeat it?";
+  if (c.includes("your name") || c.includes("who are you") || c.includes("introduce yourself"))
+    return "My name is EVERYTHING AI. My creator is Rushi Jadhav.";
 
   if (has(c, "hi", "hey", "hello")) {
     const h = new Date().getHours();
@@ -309,7 +311,6 @@ function process(raw) {
     return notes.length ? notes.join("\n") : "You have no notes yet.";
   }
 
-  if (c.includes("your name")) return "I'm your personal assistant, built in Python. My creator is Rushi Jadhav.";
   if (has(c, "thank", "thanks")) return "You're welcome!";
   if (has(c, "exit", "quit", "bye", "stop")) return "Goodbye! Refresh the page to start again.";
   return "I'm not sure how to help with that yet.";
@@ -318,7 +319,7 @@ function process(raw) {
 async function respond(text) {
   log(text, "user", "You: ");
   const reply = await process(text);
-  log(reply, "assistant", "Assistant: ");
+  log(reply, "assistant", "EVERYTHING AI: ");
   speak(reply);
 }
 
