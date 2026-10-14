@@ -1,8 +1,0 @@
-{
-  "name": "everything-ai-openai",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "openai": "^7.10.0"
-  }
-}
